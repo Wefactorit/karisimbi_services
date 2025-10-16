@@ -49,10 +49,10 @@ IMAGE=$(grep -A 3 '^container:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'imag
 NAMESPACE=$(grep -A 10 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'namespace:' | awk '{print $2}')
 REPLICAS=$(grep -A 10 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'replicas:' | awk '{print $2}')
 
-CPU_REQUEST=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'requests:' | grep 'cpu:' | awk '{print $2}' | tr -d '"')
-MEMORY_REQUEST=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'requests:' | grep 'memory:' | awk '{print $2}' | tr -d '"')
-CPU_LIMIT=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'limits:' | grep 'cpu:' | awk '{print $2}' | tr -d '"')
-MEMORY_LIMIT=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'limits:' | grep 'memory:' | awk '{print $2}' | tr -d '"')
+CPU_REQUEST=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'requests:' | grep 'cpu:' | head -1 | awk '{print $2}' | tr -d '"\n\r')
+MEMORY_REQUEST=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'requests:' | grep 'memory:' | head -1 | awk '{print $2}' | tr -d '"\n\r')
+CPU_LIMIT=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'limits:' | grep 'cpu:' | head -1 | awk '{print $2}' | tr -d '"\n\r')
+MEMORY_LIMIT=$(grep -A 15 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep -A 5 'limits:' | grep 'memory:' | head -1 | awk '{print $2}' | tr -d '"\n\r')
 
 # Generate environment variables section
 ENV_VARS=""
