@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{NAMESPACE}}
+  labels:
+    managed-by: cloudeefly
+    istio-injection: enabled
+  annotations:
+    cloudeefly.io/created-at: "{{CREATED_AT}}"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-server
+  namespace: {{NAMESPACE}}
+  labels:
+    managed-by: cloudeefly
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: harbor-registry
+  namespace: {{NAMESPACE}}
+  labels:
+    managed-by: cloudeefly
+type: kubernetes.io/dockerconfigjson
+data:
+  .dockerconfigjson: {{HARBOR_REGISTRY_SECRET}}

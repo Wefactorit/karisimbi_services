@@ -1,0 +1,78 @@
+# Git repository for karisimbi_services
+
+# Deployment source directories (MCP server cloned code)
+# We don't commit the cloned source, only the deployment configuration
+deployments/*/source/
+
+# Build artifacts
+*.tar
+*.tar.gz
+*.zip
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Docker files
+.dockerignore
+
+# Kubernetes secrets (should never be committed)
+*secret*.yaml
+*-secret.yaml
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+vendor/
+
+# Test coverage
+coverage/
+*.cover
+.coverage
+htmlcov/
+
+# OS files
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup

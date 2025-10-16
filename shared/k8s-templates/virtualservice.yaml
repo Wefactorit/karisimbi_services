@@ -1,0 +1,26 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{DEPLOYMENT_NAME}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app: {{DEPLOYMENT_NAME}}
+    version: {{VERSION}}
+    managed-by: cloudeefly
+spec:
+  hosts:
+  - {{DEPLOYMENT_NAME}}.{{NAMESPACE}}.svc.cluster.local
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: {{DEPLOYMENT_NAME}}.{{NAMESPACE}}.svc.cluster.local
+        port:
+          number: 8000
+    timeout: 300s  # 5 minutes for long-running SSE connections
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: 5xx,reset,connect-failure,refused-stream

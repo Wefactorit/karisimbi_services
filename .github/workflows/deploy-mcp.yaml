@@ -1,0 +1,199 @@
+# GitHub Actions workflow for MCP server deployment
+# Triggered when changes are pushed to deployments/*
+
+name: Deploy MCP Server
+
+on:
+  push:
+    branches:
+      - main
+      - 'mcp-*'
+    paths:
+      - 'deployments/**'
+  pull_request:
+    paths:
+      - 'deployments/**'
+
+env:
+  HARBOR_REGISTRY: harbor.wefactorit.com
+  HARBOR_PROJECT: karisimbi
+
+jobs:
+  detect-changes:
+    name: Detect Changed Deployments
+    runs-on: ubuntu-latest
+    outputs:
+      deployments: ${{ steps.detect.outputs.deployments }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed deployments
+        id: detect
+        run: |
+          # Get list of changed deployment directories
+          CHANGED_DEPLOYMENTS=$(git diff --name-only HEAD^ HEAD | grep '^deployments/' | cut -d'/' -f2 | sort -u | jq -R -s -c 'split("\n")[:-1]')
+          echo "deployments=${CHANGED_DEPLOYMENTS}" >> $GITHUB_OUTPUT
+          echo "Changed deployments: ${CHANGED_DEPLOYMENTS}"
+
+  validate:
+    name: Validate Deployment
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.deployments != '[]' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate deployment configuration
+        run: |
+          DEPLOYMENT_DIR="deployments/${{ matrix.deployment }}"
+
+          # Check required files exist
+          if [ ! -f "${DEPLOYMENT_DIR}/deployment.yaml" ]; then
+            echo "Error: deployment.yaml not found"
+            exit 1
+          fi
+
+          if [ ! -f "${DEPLOYMENT_DIR}/Dockerfile" ]; then
+            echo "Error: Dockerfile not found"
+            exit 1
+          fi
+
+          # Validate deployment.yaml structure
+          if ! grep -q "^deployment:" "${DEPLOYMENT_DIR}/deployment.yaml"; then
+            echo "Error: Invalid deployment.yaml structure"
+            exit 1
+          fi
+
+          echo "✅ Validation passed for ${{ matrix.deployment }}"
+
+  build:
+    name: Build and Push Image
+    needs: [detect-changes, validate]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Harbor
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.HARBOR_REGISTRY }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+
+      - name: Extract deployment metadata
+        id: meta
+        run: |
+          DEPLOYMENT_DIR="deployments/${{ matrix.deployment }}"
+          NAME=$(grep -A 5 '^deployment:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'name:' | head -1 | awk '{print $2}')
+          VERSION=$(grep -A 5 '^deployment:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'version:' | head -1 | awk '{print $2}')
+
+          echo "name=${NAME}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: deployments/${{ matrix.deployment }}
+          file: deployments/${{ matrix.deployment }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ steps.meta.outputs.name }}:${{ steps.meta.outputs.version }}
+            ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ steps.meta.outputs.name }}:latest
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Kubernetes
+    needs: [detect-changes, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Substitute templates
+        run: |
+          DEPLOYMENT_DIR="deployments/${{ matrix.deployment }}"
+          ./scripts/substitute-templates.sh "${DEPLOYMENT_DIR}"
+
+      - name: Deploy to Kubernetes
+        run: |
+          DEPLOYMENT_DIR="deployments/${{ matrix.deployment }}"
+
+          # Apply Kubernetes manifests
+          kubectl apply -f "${DEPLOYMENT_DIR}/k8s/"
+
+          # Wait for rollout to complete
+          NAME=$(grep -A 5 '^deployment:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'name:' | head -1 | awk '{print $2}')
+          NAMESPACE=$(grep -A 10 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'namespace:' | awk '{print $2}')
+
+          kubectl rollout status deployment/${NAME} -n ${NAMESPACE} --timeout=5m
+
+          echo "✅ Deployment successful!"
+
+      - name: Verify deployment
+        run: |
+          DEPLOYMENT_DIR="deployments/${{ matrix.deployment }}"
+          NAME=$(grep -A 5 '^deployment:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'name:' | head -1 | awk '{print $2}')
+          NAMESPACE=$(grep -A 10 '^kubernetes:' "${DEPLOYMENT_DIR}/deployment.yaml" | grep 'namespace:' | awk '{print $2}')
+
+          # Get pod status
+          kubectl get pods -n ${NAMESPACE} -l app=${NAME}
+
+          # Check health endpoint
+          kubectl run -it --rm verify --image=curlimages/curl --restart=Never -- \
+            curl -f http://${NAME}.${NAMESPACE}.svc.cluster.local:8000/health || exit 1
+
+          echo "✅ Health check passed!"
+
+  notify:
+    name: Notify Cloudeefly API
+    needs: [detect-changes, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
+    steps:
+      - name: Notify deployment status
+        run: |
+          STATUS="${{ needs.deploy.result }}"
+
+          curl -X POST "${{ secrets.CLOUDEEFLY_API_URL }}/deployments/webhook" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDEEFLY_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "deployment": "${{ matrix.deployment }}",
+              "status": "'"${STATUS}"'",
+              "commit": "${{ github.sha }}",
+              "branch": "${{ github.ref_name }}",
+              "timestamp": "${{ github.event.head_commit.timestamp }}"
+            }'

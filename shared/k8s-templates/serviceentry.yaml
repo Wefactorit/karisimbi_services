@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: {{DEPLOYMENT_NAME}}
+  namespace: {{NAMESPACE}}
+  labels:
+    app: {{DEPLOYMENT_NAME}}
+    version: {{VERSION}}
+    managed-by: cloudeefly
+spec:
+  hosts:
+  - {{DEPLOYMENT_NAME}}.{{NAMESPACE}}.svc.cluster.local
+  ports:
+  - number: 8000
+    name: http
+    protocol: HTTP
+  location: MESH_INTERNAL
+  resolution: DNS
