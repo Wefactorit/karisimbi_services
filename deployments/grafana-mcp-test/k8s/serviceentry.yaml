@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1beta1
+kind: ServiceEntry
+metadata:
+  name: grafana-mcp-test
+  namespace: mcp-servers
+  labels:
+    app: grafana-mcp-test
+    version: v1.0.0
+    managed-by: cloudeefly
+spec:
+  hosts:
+  - grafana-mcp-test.mcp-servers.svc.cluster.local
+  ports:
+  - number: 8000
+    name: http
+    protocol: HTTP
+  location: MESH_INTERNAL
+  resolution: DNS

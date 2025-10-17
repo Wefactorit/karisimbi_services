@@ -1,0 +1,33 @@
+# Cloudeefly Deployment Metadata
+deployment:
+  name: grafana-mcp-test
+  version: v1.0.0
+  github_url: https://github.com/grafana/mcp-grafana
+  repo_type: golang
+  created_at: 2025-10-17T01:56:24Z
+
+# Container configuration
+container:
+  image: harbor.wefactorit.com/karisimbi/grafana-mcp-test:v1.0.0
+  port: 8000
+
+# Kubernetes configuration
+kubernetes:
+  namespace: mcp-servers
+  replicas: 2
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# Environment variables (add custom variables here)
+environment:
+  MCP_TRANSPORT: "sse"
+  MCP_PORT: "8000"
+  # Default variables
+  MCP_TRANSPORT: "sse"
+  MCP_PORT: "8000"
+  MCP_HOST: "0.0.0.0"

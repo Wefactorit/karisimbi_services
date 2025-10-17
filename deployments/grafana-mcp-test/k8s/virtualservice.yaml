@@ -1,0 +1,26 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: grafana-mcp-test
+  namespace: mcp-servers
+  labels:
+    app: grafana-mcp-test
+    version: v1.0.0
+    managed-by: cloudeefly
+spec:
+  hosts:
+  - grafana-mcp-test.mcp-servers.svc.cluster.local
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: grafana-mcp-test.mcp-servers.svc.cluster.local
+        port:
+          number: 8000
+    timeout: 300s  # 5 minutes for long-running SSE connections
+    retries:
+      attempts: 3
+      perTryTimeout: 30s
+      retryOn: 5xx,reset,connect-failure,refused-stream
