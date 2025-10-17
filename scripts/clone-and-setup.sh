@@ -88,11 +88,12 @@ fi
 
 # Check if repository already has a Dockerfile
 if [ -f "source/Dockerfile" ]; then
-    log_info "Repository already has a Dockerfile, copying it..."
-    cp source/Dockerfile ./Dockerfile
+    log_info "Repository already has a Dockerfile, will use it from source directory"
+    HAS_OWN_DOCKERFILE=true
 else
     log_info "No Dockerfile found, using base template: ${BASE_DOCKERFILE}"
     cp "${REPO_ROOT}/shared/${BASE_DOCKERFILE}" ./Dockerfile
+    HAS_OWN_DOCKERFILE=false
 fi
 
 # Create deployment metadata
@@ -138,7 +139,9 @@ for template in "${REPO_ROOT}"/shared/k8s-templates/*.yaml; do
 done
 
 log_info "Creating build script..."
-cat > build.sh <<'EOF'
+if [ "${HAS_OWN_DOCKERFILE}" = true ]; then
+    # Build from source directory using repository's own Dockerfile
+    cat > build.sh <<'EOF'
 #!/bin/bash
 # Build and push Docker image for this deployment
 
@@ -150,8 +153,33 @@ VERSION=$(grep 'version:' deployment.yaml | head -1 | awk '{print $2}')
 IMAGE=$(grep 'image:' deployment.yaml | awk '{print $2}')
 
 echo "[INFO] Building Docker image: ${IMAGE}"
+echo "[INFO] Using repository's own Dockerfile from source/"
 
-# Build image
+# Build image from source directory (repository has its own Dockerfile)
+docker build -t "${IMAGE}" --platform linux/amd64 -f source/Dockerfile source/
+
+echo "[INFO] Pushing to Harbor registry..."
+docker push "${IMAGE}"
+
+echo "[SUCCESS] Image built and pushed successfully!"
+EOF
+else
+    # Build from deployment root using base template
+    cat > build.sh <<'EOF'
+#!/bin/bash
+# Build and push Docker image for this deployment
+
+set -euo pipefail
+
+# Load deployment metadata
+DEPLOYMENT_NAME=$(grep 'name:' deployment.yaml | head -1 | awk '{print $2}')
+VERSION=$(grep 'version:' deployment.yaml | head -1 | awk '{print $2}')
+IMAGE=$(grep 'image:' deployment.yaml | awk '{print $2}')
+
+echo "[INFO] Building Docker image: ${IMAGE}"
+echo "[INFO] Using Cloudeefly base template"
+
+# Build image from deployment root (using base template)
 docker build -t "${IMAGE}" --platform linux/amd64 .
 
 echo "[INFO] Pushing to Harbor registry..."
@@ -159,6 +187,7 @@ docker push "${IMAGE}"
 
 echo "[SUCCESS] Image built and pushed successfully!"
 EOF
+fi
 
 chmod +x build.sh
 

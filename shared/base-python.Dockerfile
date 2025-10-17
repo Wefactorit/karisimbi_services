@@ -12,13 +12,13 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY requirements.txt .
+COPY source/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Copy source code
-COPY . .
+COPY source/ .
 
 # Production stage
 FROM python:3.12-slim

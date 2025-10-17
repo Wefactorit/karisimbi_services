@@ -10,13 +10,13 @@ WORKDIR /build
 RUN apk add --no-cache git ca-certificates
 
 # Copy go.mod and go.sum first for better caching
-COPY go.mod go.sum ./
+COPY source/go.mod source/go.sum ./
 
 # Download dependencies
 RUN go mod download
 
 # Copy source code
-COPY . .
+COPY source/ .
 
 # Build the binary with optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \

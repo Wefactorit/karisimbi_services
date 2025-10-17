@@ -10,13 +10,13 @@ WORKDIR /build
 RUN apk add --no-cache python3 make g++
 
 # Copy package files
-COPY package*.json ./
+COPY source/package*.json ./
 
 # Install dependencies
 RUN npm ci --only=production
 
 # Copy source code
-COPY . .
+COPY source/ .
 
 # Build if needed (e.g., TypeScript compilation)
 RUN if [ -f "tsconfig.json" ]; then npm run build; fi
